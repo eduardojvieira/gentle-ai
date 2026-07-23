@@ -20,6 +20,8 @@ const ReviewIntegrationOperationSchema = "gentle-ai.review-integration.operation
 const ReviewIntegrationOperationSchemaID = "https://gentle-ai.dev/contracts/review-integration/v1/schemas/operation.schema.json"
 const ReviewIntegrationFailureSchema = "gentle-ai.review-integration.failure/v1"
 const ReviewIntegrationFailureSchemaID = "https://gentle-ai.dev/contracts/review-integration/v1/schemas/failure.schema.json"
+const ReviewIntegrationFailureSchemaV2 = "gentle-ai.review-integration.failure/v2"
+const ReviewIntegrationFailureSchemaIDV2 = "https://gentle-ai.dev/contracts/review-integration/v1/schemas/failure-v2.schema.json"
 
 const (
 	ReviewIntegrationOperationFinalize               = "review.finalize"
@@ -215,6 +217,48 @@ func reviewIntegrationContractArgument(args []string) (provided bool, value stri
 		index++
 	}
 	return provided, value, missing
+}
+
+func reviewIntegrationProtocol(args []string) (int, []string, error) {
+	minor := 4
+	filtered := make([]string, 0, len(args))
+	for index := 0; index < len(args); index++ {
+		argument := args[index]
+		if argument != "--protocol-minor" && !strings.HasPrefix(argument, "--protocol-minor=") {
+			filtered = append(filtered, argument)
+			continue
+		}
+		value := strings.TrimPrefix(argument, "--protocol-minor=")
+		if argument == "--protocol-minor" {
+			index++
+			if index == len(args) {
+				return minor, filtered, errors.New("protocol minor is missing")
+			}
+			value = args[index]
+		}
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 4 || parsed > 5 {
+			return minor, filtered, fmt.Errorf("unsupported protocol minor %q", value)
+		}
+		minor = parsed
+	}
+	return minor, filtered, nil
+}
+
+func reviewIntegrationFailureForProtocol(failure ReviewIntegrationFailure, minor int) ReviewIntegrationFailure {
+	if minor >= 5 {
+		failure.Schema = ReviewIntegrationFailureSchemaV2
+		if failure.Code == "receipt_ambiguous" {
+			failure.NextAction = ReviewIntegrationOperationValidate
+		}
+		return failure
+	}
+	failure.Candidates = nil
+	if failure.Code == "receipt_ambiguous" {
+		failure.RequiredInputs = []string{}
+		failure.NextAction = "stop"
+	}
+	return failure
 }
 
 func newReviewIntegrationPreflightFailure(operation, code, message string) ReviewIntegrationFailure {
@@ -768,7 +812,7 @@ func validReviewIntegrationLineage(value string) bool {
 }
 
 func (failure ReviewIntegrationFailure) Validate() error {
-	if failure.Schema != ReviewIntegrationFailureSchema || failure.Contract != ReviewIntegrationContractV1 ||
+	if failure.Schema != ReviewIntegrationFailureSchema && failure.Schema != ReviewIntegrationFailureSchemaV2 || failure.Contract != ReviewIntegrationContractV1 ||
 		!validReviewIntegrationFailureOperation(failure.Operation) {
 		return errors.New("invalid negotiated review failure identity")
 	}
@@ -805,7 +849,7 @@ func (failure ReviewIntegrationFailure) Validate() error {
 			return errors.New("unsupported negotiated review failure input")
 		}
 	}
-	if failure.Code == "receipt_ambiguous" {
+	if failure.Schema == ReviewIntegrationFailureSchemaV2 && failure.Code == "receipt_ambiguous" {
 		if len(failure.Candidates) < 2 {
 			return errors.New("negotiated review ambiguity candidates are incomplete")
 		}
@@ -816,6 +860,10 @@ func (failure ReviewIntegrationFailure) Validate() error {
 		}
 	} else if len(failure.Candidates) != 0 {
 		return errors.New("negotiated review candidates require receipt ambiguity")
+	}
+	if failure.Code == "receipt_ambiguous" && (failure.Schema == ReviewIntegrationFailureSchemaV2 && (!reflect.DeepEqual(failure.RequiredInputs, []string{"lineage_id"}) || failure.NextAction != ReviewIntegrationOperationValidate) ||
+		failure.Schema == ReviewIntegrationFailureSchema && (len(failure.RequiredInputs) != 0 || failure.NextAction != "stop")) {
+		return errors.New("negotiated review ambiguity route is inconsistent")
 	}
 	if failure.Context != nil {
 		if (failure.Context.ScopeChange == nil) == (failure.Context.BindingRevision == nil) {

@@ -251,25 +251,32 @@ func RunReview(args []string, stdout io.Writer) error {
 		_, _ = fmt.Fprintln(stdout, "Additive headless capabilities: gentle-ai review capture-result (with --preflight) and gentle-ai review preserve-result.")
 		return nil
 	}
-	operation, negotiated, preflightFailure := reviewIntegrationFailureRoute(args)
+	protocolMinor, operationArgs, protocolErr := reviewIntegrationProtocol(args)
+	if protocolErr != nil {
+		return protocolErr
+	}
+	operation, negotiated, preflightFailure := reviewIntegrationFailureRoute(operationArgs)
 	if preflightFailure != nil {
+		*preflightFailure = reviewIntegrationFailureForProtocol(*preflightFailure, protocolMinor)
 		if err := emitReviewIntegrationFailure(stdout, *preflightFailure); err != nil {
 			return err
 		}
 		return newReviewIntegrationFailureError(*preflightFailure, nil)
 	}
 	if !negotiated {
-		return runReviewCommand(args, stdout)
+		return runReviewCommand(operationArgs, stdout)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), reviewFacadeOperationTimeout)
 	defer cancel()
 	var committed atomic.Pointer[reviewFacadeOperationProgressError]
 	ctx = context.WithValue(ctx, reviewFacadeOperationProgressError{}, &committed)
 	metadata, _ := reviewIntegrationOperationByName(operation)
-	joinOnTimeout := metadata.JoinOnTimeout && reviewIntegrationOperationMutates(metadata, args[1:])
+	joinOnTimeout := metadata.JoinOnTimeout && reviewIntegrationOperationMutates(metadata, operationArgs[1:])
 	var output bytes.Buffer
 	result := make(chan error, 1)
-	go func(runner func(context.Context, []string, io.Writer) error) { result <- runner(ctx, args, &output) }(reviewFacadeCommandRunner)
+	go func(runner func(context.Context, []string, io.Writer) error) {
+		result <- runner(ctx, operationArgs, &output)
+	}(reviewFacadeCommandRunner)
 	var runErr error
 	select {
 	case runErr = <-result:
@@ -293,7 +300,7 @@ func RunReview(args []string, stdout io.Writer) error {
 		_, err := io.Copy(stdout, &output)
 		return err
 	}
-	failure := newReviewIntegrationFailure(operation, args[1:], runErr)
+	failure := reviewIntegrationFailureForProtocol(newReviewIntegrationFailure(operation, operationArgs[1:], runErr), protocolMinor)
 	if err := emitReviewIntegrationFailure(stdout, failure); err != nil {
 		return err
 	}

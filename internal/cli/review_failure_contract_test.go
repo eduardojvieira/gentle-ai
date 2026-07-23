@@ -951,6 +951,9 @@ func TestReviewIntegrationFailureSchemaAndFixtureAreStrict(t *testing.T) {
 	if !containsString(inputs, "base_ref") {
 		t.Fatalf("failure required_inputs vocabulary = %v", inputs)
 	}
+	if _, ok := schema["properties"].(map[string]any)["candidates"]; ok {
+		t.Fatal("failure/v1 schema contains the v2 candidates field")
+	}
 	fixture, err := os.ReadFile(filepath.Join(root, "fixtures", "failure.fixture.json"))
 	if err != nil {
 		t.Fatal(err)

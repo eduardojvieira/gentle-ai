@@ -379,7 +379,7 @@ func TestUnqualifiedGateDiscoveryRejectsMultipleExactReceiptsButExplicitLineageI
 	}
 	failure := decodeReviewIntegrationFailure(t, output.Bytes())
 	if failure.Code != "receipt_ambiguous" || failure.AuthorityApplicability != "ambiguous" || failure.RetrySafe ||
-		len(failure.RequiredInputs) != 1 || failure.RequiredInputs[0] != "lineage_id" {
+		len(failure.RequiredInputs) != 0 || failure.NextAction != "stop" || len(failure.Candidates) != 0 {
 		t.Fatalf("ambiguous receipt failure = %#v", failure)
 	}
 
@@ -424,17 +424,32 @@ func TestUnqualifiedGateDiscoveryRequiresSelectionForMultipleScopeChangedReceipt
 
 			var output bytes.Buffer
 			err := RunReview([]string{
-				"validate", "--contract", ReviewIntegrationContractV1, "--cwd", repo, "--gate", string(tt.gate),
+				"validate", "--contract", ReviewIntegrationContractV1, "--protocol-minor", "4", "--cwd", repo, "--gate", string(tt.gate),
 			}, &output)
 			if err == nil {
 				t.Fatal("multiple scope-changed receipts were selected implicitly")
 			}
 			failure := decodeReviewIntegrationFailure(t, output.Bytes())
 			if failure.Code != "receipt_ambiguous" || failure.AuthorityApplicability != "ambiguous" || failure.Context != nil || failure.RetrySafe ||
-				failure.Replayability != reviewtransaction.ReplayabilityManualActionRequired || failure.NextAction != "review.status" ||
-				!reflect.DeepEqual(failure.RequiredInputs, []string{"lineage_id"}) || !reflect.DeepEqual(failure.Candidates, lineages) {
+				failure.Replayability != reviewtransaction.ReplayabilityManualActionRequired || failure.NextAction != "stop" ||
+				len(failure.RequiredInputs) != 0 || len(failure.Candidates) != 0 {
 				t.Fatalf("multiple scope-changed failure = %#v", failure)
 			}
+			validateFinalVerificationContractSchema(t, "failure.schema.json", output.Bytes())
+
+			output.Reset()
+			err = RunReview([]string{
+				"validate", "--contract", ReviewIntegrationContractV1, "--protocol-minor", "5", "--cwd", repo, "--gate", string(tt.gate),
+			}, &output)
+			if err == nil {
+				t.Fatal("protocol 1.5 multiple scope-changed receipts were selected implicitly")
+			}
+			current := decodeReviewIntegrationFailure(t, output.Bytes())
+			if current.Schema != ReviewIntegrationFailureSchemaV2 || current.NextAction != ReviewIntegrationOperationValidate ||
+				!reflect.DeepEqual(current.RequiredInputs, []string{"lineage_id"}) || !reflect.DeepEqual(current.Candidates, lineages) {
+				t.Fatalf("protocol 1.5 multiple scope-changed failure = %#v", current)
+			}
+			validateFinalVerificationContractSchema(t, "failure-v2.schema.json", output.Bytes())
 
 			output.Reset()
 			if err := RunReview([]string{

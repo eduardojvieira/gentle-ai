@@ -866,7 +866,7 @@ func TestApprovedNoncanonicalRecoveryCandidatesStayAmbiguous(t *testing.T) {
 }
 
 func TestApprovedNoncanonicalSingletonIsNotRecoverable(t *testing.T) {
-	repo, base, predecessor, store, _ := approvedBaseDiffScopeRecoveryFixture(t, "noncanonical-singleton")
+	repo, base, _, store, _ := approvedBaseDiffScopeRecoveryFixture(t, "noncanonical-singleton")
 	receipt, err := os.ReadFile(store.ReceiptPath())
 	if err != nil {
 		t.Fatal(err)
@@ -880,8 +880,8 @@ func TestApprovedNoncanonicalSingletonIsNotRecoverable(t *testing.T) {
 		Kind: TargetBaseWorkspaceOverlay, Projection: ProjectionStaged,
 		BaseRef: base, IntendedUntracked: []string{},
 	}})
-	if err != nil || status.Applicability != TargetApplicabilityCurrent || status.LineageID != predecessor.LineageID ||
-		status.Action != TargetStatusActionValidate || status.Replayability != ReplayabilityNotReplayable {
+	if err != nil || status.Applicability != TargetApplicabilityUnrelated || status.LineageID != "" ||
+		status.Action != TargetStatusActionStop || status.Replayability != ReplayabilityManualActionRequired {
 		t.Fatalf("STATUS = %#v, %v", status, err)
 	}
 }

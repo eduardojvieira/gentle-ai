@@ -255,6 +255,15 @@ func assessTargetStatusSnapshot(ctx context.Context, repo string, request Target
 		}
 		return base, nil
 	case 1:
+		if candidate := candidates[0]; candidate.compact != nil && candidate.compact.State.State == StateApproved && candidate.receiptPublished &&
+			!candidate.receiptCanonical && base.TargetIdentity != candidate.compact.State.CurrentSnapshot.Identity {
+			base.Applicability = TargetApplicabilityUnrelated
+			base.Action, base.Replayability = TargetStatusActionStart, ReplayabilityNotReplayable
+			if live.Kind == TargetBaseWorkspaceOverlay && live.Projection == ProjectionStaged {
+				base.Action, base.Replayability = TargetStatusActionStop, ReplayabilityManualActionRequired
+			}
+			return base, nil
+		}
 		return targetStatusForCandidate(base, candidates[0]), nil
 	default:
 		base.Applicability = TargetApplicabilityAmbiguous
