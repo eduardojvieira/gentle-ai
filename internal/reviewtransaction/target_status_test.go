@@ -865,6 +865,27 @@ func TestApprovedNoncanonicalRecoveryCandidatesStayAmbiguous(t *testing.T) {
 	}
 }
 
+func TestApprovedNoncanonicalSingletonIsNotRecoverable(t *testing.T) {
+	repo, base, predecessor, store, _ := approvedBaseDiffScopeRecoveryFixture(t, "noncanonical-singleton")
+	receipt, err := os.ReadFile(store.ReceiptPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(store.ReceiptPath(), append(receipt, '\n'), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stageStagedScopeExtra(t, repo)
+
+	status, err := AssessTargetStatus(context.Background(), repo, TargetStatusRequest{Target: Target{
+		Kind: TargetBaseWorkspaceOverlay, Projection: ProjectionStaged,
+		BaseRef: base, IntendedUntracked: []string{},
+	}})
+	if err != nil || status.Applicability != TargetApplicabilityCurrent || status.LineageID != predecessor.LineageID ||
+		status.Action != TargetStatusActionValidate || status.Replayability != ReplayabilityNotReplayable {
+		t.Fatalf("STATUS = %#v, %v", status, err)
+	}
+}
+
 func TestAssessTargetStatusFailsClosedForMixedSameLineageAuthority(t *testing.T) {
 	requireSnapshotGit(t)
 	repo := initSnapshotRepo(t)

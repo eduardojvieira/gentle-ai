@@ -444,9 +444,10 @@ func TestUnqualifiedGateDiscoveryRequiresSelectionForMultipleScopeChangedReceipt
 			}
 			var status ReviewTargetStatusResult
 			decodeStrictReviewJSON(t, output.Bytes(), &status)
-			if status.Applicability != tt.status || tt.status == reviewtransaction.TargetApplicabilityAmbiguous &&
-				(status.Action != reviewtransaction.TargetStatusActionSelectLineage || status.Replayability != reviewtransaction.ReplayabilityStatusRequired ||
-					!reflect.DeepEqual(status.Candidates, lineages)) {
+			if status.Applicability != tt.status || tt.status == reviewtransaction.TargetApplicabilityUnrelated &&
+				(status.Action != reviewtransaction.TargetStatusActionStart || status.Replayability != reviewtransaction.ReplayabilityNotReplayable || len(status.Candidates) != 0) ||
+				tt.status == reviewtransaction.TargetApplicabilityAmbiguous && (status.Action != reviewtransaction.TargetStatusActionSelectLineage ||
+					status.Replayability != reviewtransaction.ReplayabilityStatusRequired || !reflect.DeepEqual(status.Candidates, lineages)) {
 				t.Fatalf("multiple scope-changed status = %#v", status)
 			}
 

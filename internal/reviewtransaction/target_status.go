@@ -97,6 +97,7 @@ type targetStatusCandidate struct {
 	legacyStore        *Store
 	receiptIdentity    string
 	receiptPublished   bool
+	receiptCanonical   bool
 	receiptReplayable  bool
 	pendingFinalize    bool
 	correctionRecovery bool
@@ -165,16 +166,20 @@ func assessTargetStatusSnapshot(ctx context.Context, repo string, request Target
 				return targetStatusFailure(base, eligibilityErr)
 			}
 			if eligible {
-				candidate.correctionRecovery = true
-				candidate.recoveryDisposition = RecoveryScopeChanged
+				if candidate.receiptCanonical {
+					candidate.correctionRecovery = true
+					candidate.recoveryDisposition = RecoveryScopeChanged
+				}
 				candidates = append(candidates, candidate)
 				continue
 			}
 			requested := state
 			requested.InitialSnapshot = live
 			if state.CurrentSnapshot.CandidateTree != live.CandidateTree && compactStartDeliveryScopeMatches(state, requested) {
-				candidate.correctionRecovery = true
-				candidate.recoveryDisposition = RecoveryScopeChanged
+				if candidate.receiptCanonical {
+					candidate.correctionRecovery = true
+					candidate.recoveryDisposition = RecoveryScopeChanged
+				}
 				candidates = append(candidates, candidate)
 				continue
 			}
