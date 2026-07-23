@@ -760,28 +760,6 @@ func TestNegotiatedReviewStartRejectsInvalidContractsBeforeAuthorityMutation(t *
 	}
 }
 
-func TestNegotiatedReviewStartKeepsProtocolMinorAfterOptionBoundaryPositional(t *testing.T) {
-	for _, positional := range [][]string{{"--protocol-minor=5"}, {"--protocol-minor", "5"}} {
-		t.Run(strings.Join(positional, "_"), func(t *testing.T) {
-			repo := initReviewCLIRepo(t)
-			args := []string{"start", "--contract", ReviewIntegrationContractV1, "--cwd", repo, "--lineage", "review-positional-protocol", "--"}
-			var output bytes.Buffer
-			err := RunReview(append(args, positional...), &output)
-			if err == nil {
-				t.Fatalf("positional protocol minor error = %v", err)
-			}
-			failure := decodeReviewIntegrationFailure(t, output.Bytes())
-			if failure.Schema != ReviewIntegrationFailureSchema || failure.MutationOutcome != ReviewMutationNotStarted {
-				t.Fatalf("positional protocol minor failure = %#v", failure)
-			}
-			stores, discoverErr := reviewtransaction.DiscoverCompactStores(context.Background(), repo)
-			if discoverErr != nil || len(stores) != 0 {
-				t.Fatalf("positional protocol minor authority stores = %#v, %v", stores, discoverErr)
-			}
-		})
-	}
-}
-
 func TestExplicitReviewStartRetriesAcrossSharedCommonDirWithoutReconstruction(t *testing.T) {
 	repo := initReviewCLIRepo(t)
 	linked := filepath.Join(t.TempDir(), "linked")

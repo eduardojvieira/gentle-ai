@@ -28,6 +28,32 @@ func assertScopeChangeRecovery(t *testing.T, failure ReviewIntegrationFailure, l
 	}
 }
 
+func TestReviewStartRespectsProtocolOptionBoundary(t *testing.T) {
+	minor, filtered, err := reviewIntegrationProtocol([]string{"--protocol-minor", "5", "--cwd", "repo"})
+	if err != nil || minor != 5 || !reflect.DeepEqual(filtered, []string{"--cwd", "repo"}) {
+		t.Fatalf("pre-boundary protocol negotiation = %d, %#v, %v", minor, filtered, err)
+	}
+
+	for _, positional := range [][]string{{"--protocol-minor=5"}, {"--protocol-minor", "5"}} {
+		t.Run(strings.Join(positional, "_"), func(t *testing.T) {
+			repo := initReviewCLIRepo(t)
+			args := []string{"start", "--contract", ReviewIntegrationContractV1, "--cwd", repo, "--lineage", "review-positional-protocol", "--"}
+			var output bytes.Buffer
+			if err := RunReview(append(args, positional...), &output); err == nil {
+				t.Fatal("post-boundary protocol minor succeeded")
+			}
+			failure := decodeReviewIntegrationFailure(t, output.Bytes())
+			if failure.Schema != ReviewIntegrationFailureSchema || failure.MutationOutcome != ReviewMutationNotStarted {
+				t.Fatalf("post-boundary protocol minor failure = %#v", failure)
+			}
+			stores, err := reviewtransaction.DiscoverCompactStores(context.Background(), repo)
+			if err != nil || len(stores) != 0 {
+				t.Fatalf("post-boundary authority stores = %#v, %v", stores, err)
+			}
+		})
+	}
+}
+
 func TestUnqualifiedGateDiscoverySelectsOneExactReceiptAcrossUnrelatedHistory(t *testing.T) {
 	repo := initReviewCLIRepo(t)
 	first, _ := approveDiscoveryMarkdown(t, repo, "review-discovery-first", "docs/first.md", "first\n")
