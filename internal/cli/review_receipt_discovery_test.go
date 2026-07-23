@@ -432,7 +432,7 @@ func TestUnqualifiedGateDiscoveryRequiresSelectionForMultipleScopeChangedReceipt
 			failure := decodeReviewIntegrationFailure(t, output.Bytes())
 			if failure.Code != "receipt_ambiguous" || failure.AuthorityApplicability != "ambiguous" || failure.Context != nil || failure.RetrySafe ||
 				failure.Replayability != reviewtransaction.ReplayabilityManualActionRequired || failure.NextAction != "review.status" ||
-				!reflect.DeepEqual(failure.RequiredInputs, []string{"lineage_id"}) {
+				!reflect.DeepEqual(failure.RequiredInputs, []string{"lineage_id"}) || !reflect.DeepEqual(failure.Candidates, lineages) {
 				t.Fatalf("multiple scope-changed failure = %#v", failure)
 			}
 

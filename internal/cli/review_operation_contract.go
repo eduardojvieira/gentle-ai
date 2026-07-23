@@ -104,6 +104,7 @@ type ReviewIntegrationFailure struct {
 	RequestDigest          string                           `json:"request_digest,omitempty"`
 	ProgressIdentity       string                           `json:"progress_identity,omitempty"`
 	RequiredInputs         []string                         `json:"required_inputs"`
+	Candidates             []string                         `json:"candidates,omitempty"`
 	NextAction             string                           `json:"next_action"`
 	CauseCategory          string                           `json:"cause_category,omitempty"`
 	Context                *ReviewIntegrationFailureContext `json:"context,omitempty"`
@@ -543,6 +544,7 @@ func newReviewIntegrationFailure(operation string, args []string, runErr error) 
 		case ReviewReceiptAmbiguous:
 			failure.AuthorityApplicability = "ambiguous"
 			failure.RequiredInputs = []string{"lineage_id"}
+			failure.Candidates = append([]string{}, discovery.Candidates...)
 			failure.NextAction = "review.status"
 		case ReviewAuthorityCorrupted:
 			failure.AuthorityApplicability = "corrupted"
@@ -802,6 +804,18 @@ func (failure ReviewIntegrationFailure) Validate() error {
 		if !supportedReviewIntegrationFailureInput(input) {
 			return errors.New("unsupported negotiated review failure input")
 		}
+	}
+	if failure.Code == "receipt_ambiguous" {
+		if len(failure.Candidates) < 2 {
+			return errors.New("negotiated review ambiguity candidates are incomplete")
+		}
+		for _, lineage := range failure.Candidates {
+			if !validReviewIntegrationLineage(lineage) {
+				return errors.New("invalid negotiated review ambiguity candidate")
+			}
+		}
+	} else if len(failure.Candidates) != 0 {
+		return errors.New("negotiated review candidates require receipt ambiguity")
 	}
 	if failure.Context != nil {
 		if (failure.Context.ScopeChange == nil) == (failure.Context.BindingRevision == nil) {
