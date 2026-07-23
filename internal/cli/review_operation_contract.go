@@ -224,6 +224,10 @@ func reviewIntegrationProtocol(args []string) (int, []string, error) {
 	filtered := make([]string, 0, len(args))
 	for index := 0; index < len(args); index++ {
 		argument := args[index]
+		if argument == "--" {
+			filtered = append(filtered, args[index:]...)
+			break
+		}
 		if argument != "--protocol-minor" && !strings.HasPrefix(argument, "--protocol-minor=") {
 			filtered = append(filtered, argument)
 			continue
